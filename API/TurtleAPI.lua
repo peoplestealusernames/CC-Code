@@ -1,11 +1,28 @@
+--Intro
+
+-- make sure to run Init(Modem,GPSFreq)
+
+--Intro
+--Declariations
+
 os.loadAPI("GPSAPI.lua")
 
 local Modem,GPSFreq
 local Pos,Dir
 
 local DoActions,VecIsZero,VecEqual,Update,Clamp,ClampDir
+local TryMove,DirMove,MoveWithFNC,CopyTable,MoveFnc
 
--- make sure to run Init(Modem,GPSFreq)
+--Declariations
+--Refrences
+
+-- Dir
+-- -x = 1,West
+-- -z = 2,North
+-- +x = 3,East
+-- +z = 4,South
+-- +y = 5
+-- -y = 6
 
 DirRef = {
 	[1] = "-x",[2] = "-z",[3] = "+x",[4] = "+z",
@@ -24,18 +41,37 @@ DirVector = {
 	[6] = vector.new(0,-1,0),
 }
 
+--Refrences
+--Init
+
+function Init(Modem1,GPSFreq1)
+	Modem = Modem1
+	GPSFreq = GPSFreq1
+	local file = fs.open("turtlePosition.txt","r")
+	if not file then
+		CheckDir()
+		UpdateGPS()
+	else
+		local Tab = textutils.unserialise(file.readAll())
+		Dir = Tab.Dir
+		Pos = Tab.Pos
+		file.close()
+	end
+	Update()
+end
+
+--Init
+--Position savers
+
 function UpdateGPS()
-	local Tab = {}
+	--Updates with gps
 	Pos = GPSAPI.GetPos(Modem,GPSFreq,"Req")
 	Pos = Pos:round()
-	Tab.Pos = Pos
-	Tab.Dir = Dir
-	file = fs.open("turtlePosition.txt","w")
-	file.write(textutils.serialise(Tab))
-	file.close()
+	Update()
 end
 
 function Update()
+	--Updates the turtlePosition File
 	local Tab = {}
 	Tab.Pos = Pos
 	Tab.Dir = Dir
@@ -44,71 +80,58 @@ function Update()
 	file.close()
 end
 
+--Position savers
+--Checks
+
 function CheckFuel(Needed)
-	local fuel = turtle.getFuelLevel()
+	--Checks fuel level 1 fuel per block
+	--If needed is nil it will default to 1
 	if not Needed then
-		return fuel > 0
-	else
-		return fuel >= Needed
+		Needed = 1
 	end
+	
+	return turtle.getFuelLevel() >= Needed
 end
 
-function DirMove(MoveDir)
+--Checks
+--Movement functions
+
+function DirMove(MoveDir)--local
+	--Updates positon bases on dir given
 	Pos = Pos + DirVector[MoveDir]
 	Update()
 end
 
-function DirMoveBack(MoveDir)
-	DirMove(Clamp(MoveDir+2,1,4))
+function MoveFnc(Call,RealDir)--local
+	if not CheckFuel() then
+		return false,"Fuel"
+	end
+	if not Call() then
+		return false,"Cant"
+	end
+	
+	if not RealDir then
+		DirMove(Dir)
+	else
+		DirMove(RealDir)
+	end
+	return true
 end
 
 function Forward()
-	if not CheckFuel() then
-		return false,"Fuel"
-	end
-	
-	if not turtle.forward() then
-		return false,"Cant"
-	end
-	
-	DirMove(Dir)
-	return true
+	return table.unpack({MoveFnc(turtle.forward)})
 end
 
 function Back()
-	if not CheckFuel() then
-		return false,"Fuel"
-	end
-	if not turtle.back() then
-		return false,"Cant"
-	end
-	
-	DirMoveBack(Dir)
-	return true
+	return table.unpack({MoveFnc(turtle.back,ClampDir(Dir+2))})
 end
 
 function Up()
-	if not CheckFuel() then
-		return false,"Fuel"
-	end
-	if not turtle.up() then
-		return false,"Cant"
-	end
-	Pos.y = Pos.y + 1
-	Update()
-	return true
+	return table.unpack({MoveFnc(turtle.up,5)})
 end
 
 function Down()
-	if not CheckFuel() then
-		return false,"Fuel"
-	end
-	if not turtle.down() then
-		return false,"Cant"
-	end
-	Pos.y = Pos.y - 1
-	Update()
-	return true
+	return table.unpack({MoveFnc(turtle.down,6)})
 end
 
 function Right()
@@ -125,18 +148,8 @@ function Left()
 	return ChangeDir(-1)
 end
 
-function ChangeDir(c)
-	Dir = ClampDir(Dir+c)
-	Update()
-	return true
-end
-
-function GetPos()
-	return Pos
-end
-
--- movement functions
--- direction functions
+--Movement functions
+--Direction functions
 
 -- Dir
 -- -x = 1,West
@@ -184,7 +197,6 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 	local Dif = Pos2 - Org
 	
 	Dir = (2+Dif.x)*math.abs(Dif.x)+(3+Dif.z)*math.abs(Dif.z)
-	
 	if ((Dir < 1) or (Dir > 4) or (math.floor(Dir)~=math.ceil(Dir))) then
 		return table.unpack({CheckDirFail(Rep,Pos2,ResetMove)})
 	end
@@ -194,10 +206,6 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 	sleep(0.6)--Hopefuly resets the distance error
 	UpdateGPS()
 	return true,Dir
-end
-
-function GetDir()
-	return Dir
 end
 
 function TurnTo(Val)
@@ -212,8 +220,25 @@ function TurnTo(Val)
 	end
 end
 
--- direction functions
--- Misc functions local
+function ChangeDir(c)
+	Dir = ClampDir(Dir+c)
+	Update()
+	return true
+end
+
+--Direction functions
+--Get value functions
+
+function GetDir()
+	return Dir
+end
+
+function GetPos()
+	return Pos
+end
+
+--Get value functions
+--Misc functions local
 
 function VecEqual(A,B)
 	return 0==(math.abs(A.x-B.x)+math.abs(A.y-B.y)+math.abs(A.z-B.z))
@@ -238,40 +263,22 @@ function ClampDir(x)
 	return Clamp(x,1,4)
 end
 
--- Misc functions local
--- Executable functions
-
-function Init(Modem1,GPSFreq1)
-	Modem = Modem1
-	GPSFreq = GPSFreq1
-	local file = fs.open("turtlePosition.txt","r")
-	if not file then
-		CheckDir()
-		UpdateGPS()
-		local Tab = {}
-		Tab.Dir = Dir
-		Tab.Pos = Pos
-		local file = fs.open("turtlePosition.txt","w")
-		file.write(textutils.serialise(Tab))
-		file.close()
-	else
-		local Tab = textutils.unserialise(file.readAll())
-		Dir = Tab.Dir
-		Pos = Tab.Pos
-		file.close()
-	end
-	Update()
-end
+--Misc functions local
+--Movement handlers
 
 function GoToRaw(x,y,z)
+	--Goes to a x,y,z positon
 	return GoTo(vector.new(x,y,z))
 end
 
 function GoToRelative(x,y,z)
+	--Goes to a relative x,y,z positon
 	return GoTo(vector.new(x,y,z)+Pos)
 end
 
-function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run the turtle dry
+function GoTo(GoPos,FuelOveride)
+	--Goes to a vector position
+	--FuelOveride can be nill when true it will run the turtle dry
 	GoPos = vector.new(GoPos.x,GoPos.y,GoPos.z)
 	GoPos = GoPos:round()
 	local Dif = GoPos-Pos
@@ -286,7 +293,7 @@ function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run 
 		Dif = Dif:round()
 		
 		local Ret,Tab
-		Ret,DirFailed,Tab = TryForMove(Dif,DirFailed)
+		Ret,DirFailed,Tab = TryMove(Dif,DirFailed)
 		
 		if Ret then
 			local Stuck,Moved,Err = table.unpack(Tab)
@@ -307,34 +314,29 @@ function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run 
 	return VecIsZero(Dif)
 end
 
-function TryForMove(Dif,DirFailed)
-	local Move = 0
-	local MoveCall = Forward
-	if ((Dif.x>0) and not(DirFailed[3])) then
-		TurnTo(3) DirFailed[3] = true
-		Move = Dif.x
-	elseif ((Dif.x<0) and not(DirFailed[1])) then
-		TurnTo(1) DirFailed[1] = true
-		Move = Dif.x
-	elseif ((Dif.z>0) and not(DirFailed[4])) then
-		TurnTo(4) DirFailed[4] = true
-		Move = Dif.z
-	elseif ((Dif.z<0) and not(DirFailed[2])) then
-		TurnTo(2) DirFailed[2] = true
-		Move = Dif.z
-	elseif ((Dif.y<0) and not(DirFailed[6])) then
-		DirFailed[6] = true MoveCall = Down
-		Move = Dif.z
-	elseif ((Dif.y>0) and not(DirFailed[5])) then
-		DirFailed[5] = true MoveCall = Up
-		Move = Dif.y
-	else
-		return false,DirFailed,"Cant move"
+function TryMove(Dif,DirFailed)--Local
+	--Sees if it can move and returns the results
+	local MoveThing = {{},{Dif.x,"<",1,Forward},{Dif.z,"<",2,Forward},{Dif.x,">",3,Forward},{Dif.z,">",4,Forward},{Dif.y,">",5,Up},{Dif.y,"<",6,Down}}
+	local Move
+	local MoveCall
+	MoveThing[1] = MoveThing[Dir+1]
+	
+	for k,v in pairs(MoveThing) do
+		if not(DirFailed[v[3]]) and (load("return "..tostring(v[1])..v[2].."0")()) then
+			Move = v[1] DirFailed[v[3]]=true MoveCall=v[4]
+			if (MoveCall==Forward) then
+				TurnTo(v[3])
+			end
+			return true,DirFailed,{MoveWithFNC(Move,MoveCall)}
+		end
 	end
-	return true,DirFailed,{MoveWithFNC(Move,MoveCall)}
+	
+	return false,DirFailed,"Cant move"
 end
 
-function MoveWithFNC(Move,MoveCall)
+function MoveWithFNC(Move,MoveCall)--Local
+	--Tries running a movecall
+	--Returns results and how far it moved
 	Move = math.abs(Move)
 	local Moved = 0
 	while Move>Moved do
@@ -347,3 +349,5 @@ function MoveWithFNC(Move,MoveCall)
 	end
 	return true,Moved
 end
+
+--Movement handlers
