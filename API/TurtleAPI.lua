@@ -10,11 +10,24 @@ local DoActions,VecIsZero,VecEqual,Update,Clamp,ClampDir
 DirRef = {
 	[1] = "-x",[2] = "-z",[3] = "+x",[4] = "+z",
 	["-x"] = 1,["-z"] = 2,["+x"] = 3,["+z"] = 4,
+	
+	[5] = "+y",[6] = "-y",
+	["+y"] = 5,["-y"] = 6,
+}
+
+DirVector = {
+	[1] = vector.new(-1,0,0),
+	[2] = vector.new(0,0,-1),
+	[3] = vector.new(1,0,0),
+	[4] = vector.new(0,0,1),
+	[5] = vector.new(0,1,0),
+	[6] = vector.new(0,-1,0),
 }
 
 function UpdateGPS()
 	local Tab = {}
-	Pos = GPSAPI.GetPos(Modem,GPSFreq)
+	Pos = GPSAPI.GetPos(Modem,GPSFreq,"Req")
+	Pos = Pos:round()
 	Tab.Pos = Pos
 	Tab.Dir = Dir
 	file = fs.open("turtlePosition.txt","w")
@@ -40,6 +53,15 @@ function CheckFuel(Needed)
 	end
 end
 
+function DirMove(MoveDir)
+	Pos = Pos + DirVector[MoveDir]
+	Update()
+end
+
+function DirMoveBack(MoveDir)
+	DirMove(Clamp(MoveDir+2,1,4))
+end
+
 function Forward()
 	if not CheckFuel() then
 		return false,"Fuel"
@@ -48,16 +70,8 @@ function Forward()
 	if not turtle.forward() then
 		return false,"Cant"
 	end
-	if(Dir == 1) then
-		Pos.x = Pos.x - 1
-	elseif(Dir == 2) then
-		Pos.z = Pos.z - 1
-	elseif(Dir == 3) then
-		Pos.x = Pos.x + 1
-	elseif(Dir == 4) then
-		Pos.z = Pos.z + 1
-	end
-	Update()
+	
+	DirMove(Dir)
 	return true
 end
 
@@ -68,16 +82,8 @@ function Back()
 	if not turtle.back() then
 		return false,"Cant"
 	end
-	if(Dir == 1) then
-		Pos.x = Pos.x + 1
-	elseif(Dir == 2) then
-		Pos.z = Pos.z + 1
-	elseif(Dir == 3) then
-		Pos.x = Pos.x - 1
-	elseif(Dir == 4) then
-		Pos.z = Pos.z - 1
-	end
-	Update()
+	
+	DirMoveBack(Dir)
 	return true
 end
 
@@ -133,16 +139,18 @@ end
 -- direction functions
 
 -- Dir
--- -x = 1
--- -z = 2
--- +x = 3
--- +z = 4
+-- -x = 1,West
+-- -z = 2,North
+-- +x = 3,East
+-- +z = 4,South
+-- +y = 5
+-- -y = 6
 
 local function CheckDirFail(Rep,Org,ResetMove)
 	if (Rep<3) then
 		turtle.turnLeft()
 		ResetMove[#ResetMove+1] = turtle.right
-		return CheckDir(Rep+1,Org,ResetMove)
+		return table.unpack({CheckDir(Rep+1,Org,ResetMove)})
 	else
 		DoActions(ResetMove)
 	end
@@ -162,7 +170,7 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 	local DirOffset = 0
 	if not(turtle.forward()) then
 		if not(turtle.back()) then
-			return CheckDirFail(Rep,Org,ResetMove)
+			return table.unpack({CheckDirFail(Rep,Org,ResetMove)})
 		else
 			ResetMove[#ResetMove+1] = turtle.forward
 			DirOffset=2
@@ -171,18 +179,27 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 		ResetMove[#ResetMove+1] = turtle.back
 	end
 	
-	sleep(0.5)
 	UpdateGPS()
 	local Pos2 = Pos
 	local Dif = Pos2 - Org
-	Dir = (1+Dif.x)*math.abs(Dif.x)+(3+Dif.z)*math.abs(Dif.z)
+	-- Dir
+	-- -x = 1,West
+	-- -z = 2,North
+	-- +x = 3,East
+	-- +z = 4,South
+	-- +y = 5
+	-- -y = 6
 	
-	if ((Dir < 1) or (Dir > 4)) then
-		return CheckDirFail(Rep,Org,ResetMove)
+	Dir = (2+Dif.x)*math.abs(Dif.x)+(3+Dif.z)*math.abs(Dif.z)
+	
+	if ((Dir < 1) or (Dir > 4) or (math.floor(Dir)~=math.ceil(Dir))) then
+		return table.unpack({CheckDirFail(Rep,Pos2,ResetMove)})
 	end
 	
 	Dir = ClampDir(Dir+DirOffset)
 	DoActions(ResetMove)
+	sleep(0.6)--Hopefuly resets the distance error
+	UpdateGPS()
 	return true,Dir
 end
 
@@ -260,7 +277,7 @@ end
 function GoToRelative(x,y,z)
 	return GoTo(vector.new(x,y,z)+Pos)
 end
---TurtleAPI.GoToRelative(10,10,10)
+
 function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run the turtle dry
 	GoPos = vector.new(GoPos.x,GoPos.y,GoPos.z)
 	GoPos = GoPos:round()
@@ -272,18 +289,10 @@ function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run 
 	local DirFailed = {}
 	local Fails = 0
 	while not(VecIsZero(Dif)) do
-		--DirFailed = {1-4=horizontal based on Dir,5=up,6=down}
-		-- Dir
-		-- -x = 1
-		-- -z = 2
-		-- +x = 3
-		-- +z = 4
-		
 		Dif = GoPos-Pos
 		Dif = Dif:round()
 		
 		local Ret,Tab
-		--Tab = false,"Hit",Moved or true
 		Ret,DirFailed,Tab = TryForMove(Dif,DirFailed)
 		
 		if Ret then
@@ -302,12 +311,8 @@ function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run 
 	
 	Dif = GoPos-Pos
 	Dif = Dif:round()
-	print(VecIsZero(Dif))
-	if VecIsZero(Dif) then
-		return true
-	else
-		return false
-	end
+	print(VecIsZero(Dif),textutils.serialise(GoPos),textutils.serialise(Pos))
+	return print(VecIsZero(Dif))
 end
 
 -- Dir
@@ -315,6 +320,8 @@ end
 -- -z = 2
 -- +x = 3
 -- +z = 4
+-- +y = 5
+-- -y = 6
 
 function TryForMove(Dif,DirFailed)
 	local Move = 0
