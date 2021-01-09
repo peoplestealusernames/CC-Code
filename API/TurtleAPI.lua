@@ -157,7 +157,7 @@ local function CheckDirFail(Rep,Org,ResetMove)
 end
 
 function CheckDir(Rep,Org,ResetMove)--do not enter a value
-	if not(Rep) then -- first run through
+	if not(Rep) then
 		Rep = 0
 		if not CheckFuel() then
 			return false,"Fuel"
@@ -182,13 +182,6 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 	UpdateGPS()
 	local Pos2 = Pos
 	local Dif = Pos2 - Org
-	-- Dir
-	-- -x = 1,West
-	-- -z = 2,North
-	-- +x = 3,East
-	-- +z = 4,South
-	-- +y = 5
-	-- -y = 6
 	
 	Dir = (2+Dif.x)*math.abs(Dif.x)+(3+Dif.z)*math.abs(Dif.z)
 	
@@ -311,17 +304,8 @@ function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run 
 	
 	Dif = GoPos-Pos
 	Dif = Dif:round()
-	print(VecIsZero(Dif),textutils.serialise(GoPos),textutils.serialise(Pos))
-	return print(VecIsZero(Dif))
+	return VecIsZero(Dif)
 end
-
--- Dir
--- -x = 1
--- -z = 2
--- +x = 3
--- +z = 4
--- +y = 5
--- -y = 6
 
 function TryForMove(Dif,DirFailed)
 	local Move = 0
