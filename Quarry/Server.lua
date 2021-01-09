@@ -1,7 +1,7 @@
 os.loadAPI("GPSAPI.lua")
 
 local QuarryArea = {["x"] = 16,["z"] = 16,["yTop"] = 70,["yBottem"] = 1}
-print(textutils.serialise(QuarryArea))
+QuarryArea.yDif = QuarryArea.yTop-QuarryArea.yBottem
 
 local OnNet = {}
 local Chunk = {}
@@ -41,12 +41,16 @@ function GetInventory()
 	return SlotRet
 end
 
+function UpdatePos()
+	Pos = GPSAPI.GetPos(Modem,GPSFreq,"Req")
+end
+
 --function decs end
 --Controller function
 
 function DirectMSG(Tab)
 	if Tab.op == "reply FNC" then
-		print(textutils.serialise(Tab))
+		--print(textutils.serialise(Tab))
 	elseif Tab.op == "reply SignIn" then
 		OnNet[Tab.d] = "Ready"
 		AssignChunk(Tab.SID)
@@ -76,10 +80,10 @@ end
 --Chunk Handler
 
 function ChunkFindUnassigned()
-	for y=QuarryArea.yBottem,QuarryArea.yTop do
+	for y1=1,QuarryArea.yDif do
+		local y = math.abs(QuarryArea.yBottem+(QuarryArea.yTop-y1))
 		for z=1,QuarryArea.z do
 			for x=1,QuarryArea.x do
-				y = math.abs(QuarryArea.yTop-y)
 				if (Chunk[x][y][z] == "DESTROY") then
 					return x,y,z
 				end
@@ -99,6 +103,7 @@ function ChunkAssign()
 				if Chunk[x+XO] then if Chunk[x+XO][y+YO] then
 				if (Chunk[x+XO][y+YO][z+ZO] == "DESTROY") then
 					local VecOut = vector.new(x+XO+Pos.x,y+YO,z+ZO+Pos.z)
+					VecOut = VecOut:round()
 					table.insert(RetTab,VecOut)
 					Chunk[x+XO][y+YO][z+ZO] = "Assigned"
 				end
@@ -129,12 +134,7 @@ if not Modem then
 	return false
 end
 
-local Pos1,err = GPSAPI.GetPos(Modem,GPSFreq)
-if not Pos1 then
-	printError(err)
-	return false
-end
-Pos = Pos1
+UpdatePos()
 
 Modem.open(QuarryFreq)
 if not Modem.isOpen(QuarryFreq) then
@@ -147,7 +147,6 @@ Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
 while true do
 	local _,side,sender,reply,msg,distance = os.pullEvent()
 	if (_ == "modem_message") then
-		print(msg)
 		local Tab = textutils.unserialise(msg)
 		if Tab.Dest == ID then
 			DirectMSG(Tab)

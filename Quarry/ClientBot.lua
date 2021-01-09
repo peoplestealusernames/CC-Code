@@ -57,6 +57,7 @@ function QuarryBlocks(Blocks)
 		if(TurtleAPI.GoToRaw(v["x"],v["y"],v["z"])) then
 			turtle.digDown()
 			--INV check
+			--Fuel check
 			--do a thing for false
 		end
 	end
