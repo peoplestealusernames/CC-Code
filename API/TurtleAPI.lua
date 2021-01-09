@@ -171,6 +171,7 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 		ResetMove[#ResetMove+1] = turtle.back
 	end
 	
+	sleep(0.5)
 	UpdateGPS()
 	local Pos2 = Pos
 	local Dif = Pos2 - Org
@@ -264,79 +265,49 @@ function GoTo(GoPos,FuelOveride)--FuelOveride can be nill when true it will run 
 	GoPos = vector.new(GoPos.x,GoPos.y,GoPos.z)
 	GoPos = GoPos:round()
 	local Dif = GoPos-Pos
-	if ((not FuelOveride) and (not(CheckFuel(Dif:length()*2)))) then
+	if ((not FuelOveride) and (not(CheckFuel(Dif.x+Dif.y+Dif.z)))) then
 		return false,"Fuel+"
 	end
-	local VertFail = false
-	local HortFail = false
+	
 	local DirFailed = {}
 	local Fails = 0
 	while not(VecIsZero(Dif)) do
-		-- local FDist = Pos-GPSAPI.GetPos(Modem,GPSFreq)
-		-- if not VecEqual(Pos,GPSAPI.GetPos(Modem,GPSFreq)) then
-			-- printError("VECTORS NOT EQUAL ABORT ",FDist.x,FDist.y,FDist.z)
-		-- end
+		--DirFailed = {1-4=horizontal based on Dir,5=up,6=down}
+		-- Dir
+		-- -x = 1
+		-- -z = 2
+		-- +x = 3
+		-- +z = 4
+		
 		Dif = GoPos-Pos
 		Dif = Dif:round()
-		if ((not((Dif.x==0) and (Dif.z==0))) and (not HortFail)) then
-			local Tab,Dir = TryForMove(Dif,DirFailed)
-			local Res,ErrCode,Moved = unpack(Tab)
-			print(Res,ErrCode,Moved )
-			print(Dif)
-			if not(Res) then
-				if (ErrCode == "Hit") then
-					DirFailed[Dir] = true
-					Fails = Fails + 1
-				elseif ("Cant move") then
-					
-				end
-				
-				if (Moved>0) then
+		
+		local Ret,Tab
+		--Tab = false,"Hit",Moved or true
+		Ret,DirFailed,Tab = TryForMove(Dif,DirFailed)
+		
+		if Ret then
+			local Stuck,Moved,Err = table.unpack(Tab)
+			if Moved then
+				if Moved>0 then
 					DirFailed = {}
-					Fails = 0
-					VertFail = false
-					print("ResetV")
-				else
-					local FailsNeeded = 2
-					if ((Dif.x==0) or (Dif.z==0)) then
-						FailsNeeded = 1
-					end
-					if (Fails >= FailsNeeded) then
-						HortFail = true
-						print("FailH")
-						DirFailed = {}
-						Fails = 0
-					end
 				end
-			else
-				VertFail = false
 			end
 		else
-			local Tab = TryVertMove(Dif,DirFailed)
-			local Res,ErrCode,Moved = unpack(Tab)
-			if not(Res) then
-				if (ErrCode == "Hit") then
-					VertFail = true
-					print("FailV")
-				end
-				if (Moved>0) then
-					HortFail = false
-					print("ResetH")
-				end
-			else
-				HortFail = false
+			if (Tab == "Cant move") then
+				break
 			end
 		end
-		
-		if (HortFail and VertFail) then
-			print(VertFail,HortFail)
-			Dif = vector.new(0,0,0)
-			print("end")
-			return false,"Fail#1"
-		end
-		--os.sleep(2)
 	end
-	return true
+	
+	Dif = GoPos-Pos
+	Dif = Dif:round()
+	print(VecIsZero(Dif))
+	if VecIsZero(Dif) then
+		return true
+	else
+		return false
+	end
 end
 
 -- Dir
@@ -347,50 +318,41 @@ end
 
 function TryForMove(Dif,DirFailed)
 	local Move = 0
-	local Extra = ""
 	local MoveCall = Forward
 	if ((Dif.x>0) and not(DirFailed[3])) then
-		TurnTo(3) Extra = 3
-		Move = math.abs(Dif.x)
+		TurnTo(3) DirFailed[3] = true
+		Move = Dif.x
 	elseif ((Dif.x<0) and not(DirFailed[1])) then
-		TurnTo(1) Extra = 1
-		Move = math.abs(Dif.x)
+		TurnTo(1) DirFailed[1] = true
+		Move = Dif.x
 	elseif ((Dif.z>0) and not(DirFailed[4])) then
-		TurnTo(4) Extra = 4
-		Move = math.abs(Dif.z)
+		TurnTo(4) DirFailed[4] = true
+		Move = Dif.z
 	elseif ((Dif.z<0) and not(DirFailed[2])) then
-		TurnTo(2) Extra = 2
-		Move = math.abs(Dif.z)
+		TurnTo(2) DirFailed[2] = true
+		Move = Dif.z
+	elseif ((Dif.y<0) and not(DirFailed[6])) then
+		DirFailed[6] = true MoveCall = Down
+		Move = Dif.z
+	elseif ((Dif.y>0) and not(DirFailed[5])) then
+		DirFailed[5] = true MoveCall = Up
+		Move = Dif.y
 	else
-		return false,"Cant move"
+		return false,DirFailed,"Cant move"
 	end
-	return {MoveWithFNC(Move,MoveCall)},Extra
-end
-
-function TryVertMove(Dif)
-	local Move = Dif.y
-	local MoveCall
-	if (Move>0) then
-		MoveCall = Up
-	elseif (Move<0) then
-		MoveCall = Down
-	else
-		return true
-	end
-	return {MoveWithFNC(Move,MoveCall)}
+	return true,DirFailed,{MoveWithFNC(Move,MoveCall)}
 end
 
 function MoveWithFNC(Move,MoveCall)
 	Move = math.abs(Move)
 	local Moved = 0
-	while Move>0 do
+	while Move>Moved do
 		if not(MoveCall()) then
 			Move = 0
-			return false,"Hit",Moved
+			return false,Moved,"Hit"
 		else
-			Move = Move - 1
 			Moved = Moved + 1
 		end
 	end
-	return true
+	return true,Moved
 end
