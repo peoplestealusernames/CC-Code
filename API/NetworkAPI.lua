@@ -125,7 +125,6 @@ function Checker(Data,Type)--Local
 		return false,"No type given"
 	end
 	if not(type(Data)==Type) then
-		print(type(Data),Type,Data)
 		return false,"Types dont match"
 	end
 	return true
