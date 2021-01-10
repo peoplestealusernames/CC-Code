@@ -1,10 +1,15 @@
 os.loadAPI("GPSAPI.lua")
+os.loadAPI("NetworkAPI.lua")
+os.loadAPI("NetworkLib.lua")
+os.loadAPI("TurtleAPI.lua")
 
-local QuarryArea = {["x"] = 16,["z"] = 16,["yTop"] = 70,["yBottem"] = 1}
-QuarryArea.y = QuarryArea.yTop-QuarryArea.yBottem
+local QuarryArea = {["x"] = 7,["z"] = 7,["yTop"] = 69,["yBottem"] = 1}
+QuarryArea.y = QuarryArea.yTop-QuarryArea.yBottem--Do not use except when proccessing data
+
+local QuarryRelPos = vector.new(-math.floor(QuarryArea.x/2),QuarryArea.yBottem,-math.floor(QuarryArea.z/2))
 
 --How large of a area the turtles get assigned
-local MineArea = {x=2,y=2,z=2}
+local MineArea = {x=3,y=3,z=3}
 
 MineArea.xmax = MineArea.x-1
 MineArea.ymax = MineArea.y-1
@@ -105,13 +110,13 @@ end
 function RelToGlobal(Vec)
 	Vec.x = Vec.x+Pos.x
 	Vec.z = Vec.z+Pos.z
-	return Vec
+	return Vec+QuarryRelPos
 end
 
 function GlobalToRel(Vec)
 	Vec.x = Vec.x-Pos.x
 	Vec.z = Vec.z-Pos.z
-	return Vec
+	return Vec-QuarryRelPos
 end
 
 function XYZStri(x,y,z)
@@ -232,7 +237,9 @@ while true do
 	local _,side,sender,reply,msg,distance = os.pullEvent()
 	if (_ == "modem_message") then
 		local Op,Payload,Dest,SID,ToUs = NetworkAPI.Unpack(msg)
-		if ToUs then
+		if NetworkLib.CheckCall(Op,Payload,Dest) then
+			
+		elseif ToUs then
 			DirectMSG(Op,Payload,SID)
 		elseif Dest == -1 then
 			PublicMSG(Op,Payload,SID)

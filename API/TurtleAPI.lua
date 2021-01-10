@@ -203,7 +203,7 @@ function CheckDir(Rep,Org,ResetMove)--do not enter a value
 	
 	Dir = ClampDir(Dir+DirOffset)
 	DoActions(ResetMove)
-	sleep(0.6)--Hopefuly resets the distance error
+	sleep(0.4)--Hopefuly resets the distance error
 	UpdateGPS()
 	return true,Dir
 end

@@ -1,5 +1,6 @@
 os.loadAPI("GPSAPI.lua")
 os.loadAPI("NetworkAPI.lua")
+os.loadAPI("NetworkLib.lua")
 os.loadAPI("TurtleAPI.lua")
 
 local MYID = os.getComputerID()
@@ -64,21 +65,6 @@ function QuarryBlocks(Blocks)
 end
 
 --End controller
-
-function TestFNC(FNCS) 
-	local FNC,err = load("return "..FNCS)
-	if not (FNC) then
-		FNC,err = load(FNCS)
-	end
-	
-	if not(FNC == nil) then
-		local work, err = pcall(FNC)
-		return err --Return value (may be nil) or error
-	else
-		return err --compile error (not valid function)
-	end
-end
-
 --execution
 
 GPSFreq = textutils.unserialise(FindOrEnterVar("GPSFreq.txt","GPS frequency 0-65535"))
@@ -104,20 +90,21 @@ end
 NetworkAPI.Init(Modem,QuarryFreq)
 TurtleAPI.Init(Modem,GPSFreq)
 
---NetworkAPI.Send(Op,Payload,Dest)
 NetworkAPI.Send("Ready",-1,-1)
 
 while true do
 	local _,side,sender,reply,msg,distance = os.pullEvent()
 	if (_ == "modem_message") then
 		local Op,Payload,Dest,SID,ToUs = NetworkAPI.Unpack(msg)
-		if ToUs then
+		local Ret,Data = NetworkLib.CheckCall(Op,Payload,Dest)
+		
+		if Ret then
+			
+		elseif ToUs then
 			DirectMSG(Op,Payload,SID)
 		elseif Dest == -1 then
 			PublicMSG(Op,Payload,SID)
 		end
-	end-- elseif (side == MyTimer) then
-		-- return nil,"No gps response"
-	-- end
+	end
 end
 
