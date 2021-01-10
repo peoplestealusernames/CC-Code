@@ -2,6 +2,7 @@
 
 --A custom gps api GetPos(Modem,GPSFreq,Raw)
 --Diffrence between this and default is this supports custom freq
+--Position is calculated from the computer or turtle not modem
 
 --PARAMETERS
 --Modem is a modem perpherial
@@ -16,6 +17,7 @@
 
 -- The distance return of the MSG recived event is a bit finichy with movement
 -- I dont know what causes it or how to fix it but at times it could cause this function to return null
+-- If it is set to required mode it wont however it may take on avg ~.4 seconds to correct itself
 
 --Intro
 --Code
@@ -66,6 +68,19 @@ local function trilaterate(A, B, C) -- from CC tweaked
     return result:round(0.01)
 end
 
+local function narrow( p1, p2, fix ) -- from CC tweaked
+    local dist1 = math.abs( (p1 - fix.vPosition):length() - fix.nDistance)
+    local dist2 = math.abs( (p2 - fix.vPosition):length() - fix.nDistance)
+   
+    if math.abs(dist1 - dist2) < 0.01 then
+        return p1, p2
+    elseif dist1 < dist2 then
+        return p1:round( 0.01 )
+    else
+        return p2:round( 0.01 )
+    end
+end
+
 local function Clamp(x,min1,max1)
 	return ((x-min1)%(max1-min1+1))+min1
 end
@@ -103,8 +118,10 @@ function GetPos(Modem,GPSFreq,Mode,Rep)
 	local Msgs = {}
 	local Recived = {}
 	
+	--Gets ready for msges
 	Modem.open(GPSFreq)
 	Modem.transmit(GPSFreq,GPSFreq,Send)
+	--Gets msgs from GPS system
 	while (#Msgs<4) do
 		local _,side,sender,reply,msg,distance = os.pullEvent()
 		if (_ == "modem_message") then
@@ -134,13 +151,17 @@ function GetPos(Modem,GPSFreq,Mode,Rep)
 	end
 	Modem.close(GPSFreq)
 	
+	--trilaterate position from messages
 	local Results = {}
 	for i=1,4 do
 		local Tabs = {}
 		for k,v in pairs(Msgs) do
 			table.insert(Tabs,Msgs[Clamp(k+i,1,4)])
 		end
-		local Pos = trilaterate(table.unpack(Tabs))
+		local Pos,Pos1 = trilaterate(Tabs[1],Tabs[2],Tabs[3])
+		if Pos1 then
+			Pos  = narrow(Pos,Pos1,Tabs[4])
+		end
 		local k = textutils.serialise(Pos)
 		if (Results[k]) then
 			Results[k]=Results[k]+1
@@ -149,6 +170,7 @@ function GetPos(Modem,GPSFreq,Mode,Rep)
 		end
 	end
 	
+	--Takes result that was returned the most
 	local Biggest = -1
 	local Ret
 	for k,v in pairs(Results) do
@@ -157,8 +179,10 @@ function GetPos(Modem,GPSFreq,Mode,Rep)
 			Biggest = v
 		end
 	end
-	Ret = vector.new(Ret.x,Ret.y,Ret.z)
-	if not(VecEqual(Ret,Ret:round()))and not(Mode=="Raw") then
+	
+	--Make sure the response is valid and if it is return it
+	local Ret = vector.new(Ret.x,Ret.y,Ret.z)
+	if (Biggest==1) or not(VecEqual(Ret,Ret:round())) and not(Mode=="Raw") then
 		if (Rep<10) then
 			sleep(0.2)
 			return table.unpack({GetPos(Modem,GPSFreq,Mode,Rep)})
