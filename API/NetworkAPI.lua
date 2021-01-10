@@ -27,7 +27,7 @@ local MYID = os.computerID()
 --Declarations
 --Functions
 
-function Setup(A,B)
+function Init(A,B)
 	--Does not open port but saves Modem and DefaultPort
 	--That is used for sending this FNC is required to run
 	Modem = A DefaultPort = B
@@ -52,7 +52,7 @@ function Unpack(Stri)
 	
 	local ToUs = Dest==MYID
 	
-	return Op,Payload,Dest,ToUs --ToUs means the Dest was this computerID
+	return Op,Payload,Dest,SID,ToUs --ToUs means the Dest was this computerID
 end
 
 function Pack(Op,Payload,Dest)
@@ -172,11 +172,11 @@ end
 --They are also both public if need be to use them
 
 function unserialise(Stri)
-	return table.unpack({FileStorageAPI.unserialise(Stri)})
+	return table.unpack({SerialiseAPI.unserialise(Stri)})
 end
 
 function serialise(Data)
-	return table.unpack({FileStorageAPI.serialise(Data)})
+	return table.unpack({SerialiseAPI.serialise(Data)})
 end
 
 --Just in case FNC

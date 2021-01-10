@@ -11,7 +11,7 @@ local Modem,GPSFreq
 local Pos,Dir
 
 local DoActions,VecIsZero,VecEqual,Update,Clamp,ClampDir
-local TryMove,DirMove,MoveWithFNC,CopyTable,MoveFnc
+local TryMove,DirMove,MoveWithFNC,CopyTable,MoveFnc,RelativeChecker
 
 --Declariations
 --Refrences
@@ -263,23 +263,38 @@ function ClampDir(x)
 	return Clamp(x,1,4)
 end
 
+function RelativeChecker(v,v1)
+	if (type(v)=="string") then
+		if (v:sub(1,1)=="~") then
+			v=tonumber(v:sub(2))
+			if not v then
+				v=0
+			end
+			return v+v1
+		end
+		return tonumber(v) --may be nil
+	end
+	return v
+end
+
 --Misc functions local
 --Movement handlers
 
-function GoToRaw(x,y,z)
-	--Goes to a x,y,z positon
-	return GoTo(vector.new(x,y,z))
-end
-
-function GoToRelative(x,y,z)
-	--Goes to a relative x,y,z positon
-	return GoTo(vector.new(x,y,z)+Pos)
-end
-
-function GoTo(GoPos,FuelOveride)
+function GoToVec(Vec)
 	--Goes to a vector position
+	return GoTo(Vec.x,Vec.y,Vec.z)
+end
+
+function GoTo(x,y,z,FuelOveride)
+	--Goes to a x,y,z position
+	--Uses relative if ~ is given
 	--FuelOveride can be nill when true it will run the turtle dry
-	GoPos = vector.new(GoPos.x,GoPos.y,GoPos.z)
+	
+	x = RelativeChecker(x,Pos.x)
+	y = RelativeChecker(y,Pos.y)
+	z = RelativeChecker(z,Pos.z)
+	
+	GoPos = vector.new(x,y,z)
 	GoPos = GoPos:round()
 	local Dif = GoPos-Pos
 	if ((not FuelOveride) and (not(CheckFuel(Dif.x+Dif.y+Dif.z)))) then

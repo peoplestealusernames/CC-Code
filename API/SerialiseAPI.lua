@@ -328,7 +328,7 @@ end
 
 function GetID(Data)
 	--Turns a table into its respective indexed table id
-	local ID1 = string.sub(tostring(Data),8)
+	local ID1 = tostring(Data)
 	local ID
 	if (IDTab[ID1]) then
 		return IDTab[ID1],true

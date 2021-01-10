@@ -29,6 +29,8 @@ local SecurityFactor = 2 --How big the blocks are
 --Declarations
 
 local GetKeyNum,GetPrimes
+local ByteToString,StriToByte
+local EncryptMod,modInverse,Round,gcd_two_numbers,GetRelPrime,Clamp,SplitStri
 
 --Declarations
 --Keys
@@ -82,7 +84,7 @@ function GetKeys(Length,MaxSize,MinSize)--MaxSize,MinSize are not required but i
 	return Public,Private
 end
 
-function GetKeyNum(MaxSize,MinSize,Min,Max)
+function GetKeyNum(MaxSize,MinSize,Min,Max)--Local
 	--Gets the numbers that will go into the keys
 	local P,Q,N = GetPrimes(MaxSize,Min,Max)
 	local V = (P-1)*(Q-1)
@@ -91,9 +93,8 @@ function GetKeyNum(MaxSize,MinSize,Min,Max)
 	return N,E,D
 end
 
-function GetPrimes(MaxSize,Min,Max)
+function GetPrimes(MaxSize,Min,Max)--Local
 	--Local gets prime numbers
-	
 	local P = Primes[math.random(Min,Max)]
 	local Q = Primes[math.random(Min,Max)]
 	while ((P==Q) or (Q*P>MaxSize)) do
@@ -143,7 +144,7 @@ end
 --Encyption
 --Stri-Number handers
 
-function StriToByte(Stri)
+function StriToByte(Stri)--Local
 	--Truns a string back into its number version
 	local Ret = 0
 	for i=1,SecurityFactor do
@@ -153,7 +154,7 @@ function StriToByte(Stri)
 	return Ret
 end
 
-function ByteToString(Byte)
+function ByteToString(Byte)--Local
 	--Turns numbers into string
 	local Ret = ""
 	for i=1,SecurityFactor do
@@ -171,7 +172,7 @@ end
 --Stri-Number handers
 --Extra FNC
 
-function SplitStri(In,Sep)
+function SplitStri(In,Sep)--Local
 	local Ret={}
 	for Stri in string.gmatch(In, "([^"..Sep.."]+)") do
 		table.insert(Ret, Stri)
@@ -182,12 +183,12 @@ end
 --Extra FNC
 --Math functions
 
-function Clamp(x,min1,max1)
+function Clamp(x,min1,max1)--Local
 	--Keeps x between min and max
 	return ((x-min1)%(max1-min1+1))+min1
 end
 
-function GetRelPrime(n)
+function GetRelPrime(n)--Local
 	--Gets a number where the only GCD is 1
 	local r = 0
 	while (not(gcd_two_numbers(r,n) == 1) or (r == 1)) do
@@ -196,7 +197,7 @@ function GetRelPrime(n)
 	return r
 end
 
-function gcd_two_numbers(a, b)
+function gcd_two_numbers(a, b)--Local
 	--Gets the greatest common denominator
 	if ((a==0) or (b==0)) then
 		return -1
@@ -217,11 +218,11 @@ function gcd_two_numbers(a, b)
     end
 end
 
-function Round(x)
+function Round(x)--Local
 	return x + 0.5 - (x + 0.5) % 1
 end
 
-function modInverse(a, m)
+function modInverse(a, m)--Local
 	--I dont know
 	a = a%m
 	for x=1,m do
@@ -231,7 +232,7 @@ function modInverse(a, m)
 	end
 end
 
-function EncryptMod(m, e, n)
+function EncryptMod(m, e, n)--Local
 	--I also dont know
 	local r = 1
 	for x=1,e do

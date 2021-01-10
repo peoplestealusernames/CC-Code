@@ -1,22 +1,31 @@
 os.loadAPI("GPSAPI.lua")
 
 local QuarryArea = {["x"] = 16,["z"] = 16,["yTop"] = 70,["yBottem"] = 1}
-QuarryArea.yDif = QuarryArea.yTop-QuarryArea.yBottem
+QuarryArea.y = QuarryArea.yTop-QuarryArea.yBottem
 
+--How large of a area the turtles get assigned
+local MineArea = {x=2,y=2,z=2}
+
+MineArea.xmax = MineArea.x-1
+MineArea.ymax = MineArea.y-1
+MineArea.zmax = MineArea.z-1
+
+local MineAreas = {}
+MineAreas.x=math.ceil(QuarryArea.x/MineArea.x)
+MineAreas.y=math.ceil(QuarryArea.y/MineArea.y)
+MineAreas.z=math.ceil(QuarryArea.z/MineArea.z)
+
+MineAreas.xmax = MineAreas.x-1
+MineAreas.ymax = MineAreas.y-1
+MineAreas.zmax = MineAreas.z-1
+
+local Worth = {DESTROY=3,Assigned=2,Clear=1}
+
+local AssignedChunks = {}
 local OnNet = {}
-local Chunk = {}
+local Chunk = {}--Defined latter
 local Modem, QuarryFreq, GPSFreq, Pos
 local MYID = os.getComputerID()
-
-for x=1,QuarryArea.x do
-	Chunk[x] = {}
-	for y=QuarryArea.yBottem,QuarryArea.yTop do
-		Chunk[x][y] = {}
-		for z=1,QuarryArea.z do
-			Chunk[x][y][z] = "DESTROY"
-		end
-	end
-end
 
 local function FindOrEnterVar(FileName,Stri)
 	local file = fs.open(FileName, "r")
@@ -48,78 +57,150 @@ end
 --function decs end
 --Controller function
 
-function DirectMSG(Tab)
-	if Tab.op == "reply FNC" then
-		--print(textutils.serialise(Tab))
-	elseif Tab.op == "reply SignIn" then
-		OnNet[Tab.d] = "Ready"
-		AssignChunk(Tab.SID)
+function DirectMSG(Op,Payload,SID)
+	if Op == "reply FNC" then
+		
+	elseif Op == "reply SignIn" then
+		OnNet[Payload] = "Ready"
+		AssignChunk(SID)
+	elseif Op == "FinishedQuarry" then
+		local Brick = AssignedChunks[SID]
+		if Brick then
+			SetMineAreaValue(Brick.x,Brick.y,Brick.z,"Clear")
+		end
+		for k,v in pairs(Payload) do
+			v = GlobalToRel(v)
+			if Chunk[XYZStri(v.x,v.y,v.z)] then
+				Chunk[XYZStri(v.x,v.y,v.z)] = "DESTROY"
+			end
+		end
+		AssignedChunks[SID] = nil
+		AssignChunk(SID)
 	end
 end
 
-function PublicMSG(Tab)
-	if Tab.op == "Ready" then
-		OnNet[Tab.d] = "Ready"
-		AssignChunk(Tab.SID)
+function PublicMSG(Op,Payload,SID)
+	if Op == "Ready" then
+		OnNet[Payload] = "Ready"
+		AssignChunk(SID)
 	end
 end
 
 function AssignChunk(ID)
-	local Blocks = ChunkAssign()
-	local Data = {["op"] = "QuarryBlocks", ["d"] = Blocks, ["Dest"] = ID, ["SID"] = MYID}
-	Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
+	local Blocks = MineAreaAssign(ID)
+	for k,v in pairs(Blocks) do
+		Blocks[k] = RelToGlobal(v)
+	end
+	NetworkAPI.Send("QuarryBlocks",Blocks,ID)
 end
 
 function MoveTo(ID,Vec)
 	local Script = "TurtleAPI.GoTo("..textutils.serialise(Vec)..")"
-	local Data = {["op"] = "RunFNC", ["d"] = Script, ["Dest"] = ID, ["SID"] = MYID}
-	Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
+	NetworkAPI.Send("RunFNC",Script,ID)
 end
 
 --End controller
+--Cordinate handler
+
+function RelToGlobal(Vec)
+	Vec.x = Vec.x+Pos.x
+	Vec.z = Vec.z+Pos.z
+	return Vec
+end
+
+function GlobalToRel(Vec)
+	Vec.x = Vec.x-Pos.x
+	Vec.z = Vec.z-Pos.z
+	return Vec
+end
+
+function XYZStri(x,y,z)
+	return tostring(x)..","..tostring(y)..","..tostring(z)
+end
+
+for x=0,QuarryArea.x-1 do
+	for y=QuarryArea.yBottem,QuarryArea.yTop do
+		for z=0,QuarryArea.z-1 do
+			Chunk[XYZStri(x,y,z)] = "DESTROY"
+		end
+	end
+end
+
+--Cordinate handler
 --Chunk Handler
 
-function ChunkFindUnassigned()
-	for y1=1,QuarryArea.yDif do
-		local y = math.abs(QuarryArea.yBottem+(QuarryArea.yTop-y1))
-		for z=1,QuarryArea.z do
-			for x=1,QuarryArea.x do
-				if (Chunk[x][y][z] == "DESTROY") then
-					return x,y,z
+function GetMineAreaValue(XO,YO,ZO)
+	XO=XO*MineArea.x
+	YO=YO*MineArea.y
+	ZO=ZO*MineArea.z
+	local Ret = ""
+	local CWorth = -1
+	for y=0,MineArea.ymax do
+		for z=0,MineArea.zmax do
+			for x=0,MineArea.xmax do
+				local Block = Chunk[XYZStri(x+XO,y+YO,z+ZO)]
+				if (Block) then
+					if (Worth[Block]>CWorth) then
+						CWorth=Worth[Block]
+						Ret = Block
+					end
 				end
 			end
 		end
 	end
-	return false
+	return Ret
 end
 
-function ChunkAssign()
-	local XO,YO,ZO = ChunkFindUnassigned()
-	local RetTab = {}
-	for y1=-2,2 do
-		for z=-2,2 do
-			for x=-2,2 do
-				local y = -y1
-				if Chunk[x+XO] then if Chunk[x+XO][y+YO] then
-				if (Chunk[x+XO][y+YO][z+ZO] == "DESTROY") then
-					local VecOut = vector.new(x+XO+Pos.x,y+YO,z+ZO+Pos.z)
-					VecOut = VecOut:round()
-					table.insert(RetTab,VecOut)
-					Chunk[x+XO][y+YO][z+ZO] = "Assigned"
+function SetMineAreaValue(XO,YO,ZO,Value)
+	XO=XO*MineArea.x
+	YO=YO*MineArea.y
+	ZO=ZO*MineArea.z
+	local Ret = {}
+	for y1=0,MineArea.ymax do
+		local y = (MineArea.ymax-y1)
+		for z=0,MineArea.zmax do
+			for x=0,MineArea.xmax do
+				local Block = Chunk[XYZStri(x+XO,y+YO,z+ZO)]
+				if (Block) then
+					Chunk[XYZStri(x+XO,y+YO,z+ZO)]=Value
+					table.insert(Ret,vector.new(x+XO,y+YO,z+ZO))
 				end
-				end end
 			end
 		end
 	end
-	file = fs.open("temp","w") file.write(textutils.serialise(RetTab)) file.close()
-	return RetTab
+	return Ret
 end
 
-function ChunkUpdate(x,y,z,Var)
-	if not Var then
-		Var = "minecraft:air"
+function MineAreaAssign(ID)
+	local Ret,x,y,z = GetMineableChunk()
+	if not Ret then
+		return nil
 	end
-	Chunk[x][y][z] = Var
+	AssignedChunks[ID] = {x=x,y=y,z=z}
+	return SetMineAreaValue(x,y,z,"Assigned")
+end
+
+function GetMineableChunk()
+	local CanGoDown = false
+	for y1=0,MineAreas.ymax do
+		local y = -(y1-MineAreas.ymax)
+		CanGoDown = false
+		for z=0,MineAreas.zmax do
+			for x=0,MineAreas.xmax do
+				local Ret = GetMineAreaValue(x,y,z)
+				if (Ret=="DESTROY") then
+					return true,x,y,z
+				elseif (Ret=="Clear") then
+					CanGoDown = true
+				end
+			end
+		end
+		
+		if not CanGoDown then
+			break
+		end
+	end
+	return nil
 end
 
 --end Chunk
@@ -141,17 +222,20 @@ if not Modem.isOpen(QuarryFreq) then
 	return nil,"Cound not open quarry freq"
 end
 
-local Data = {["op"] = "SignIn", ["d"] = -1, ["Dest"] = -1, ["SID"] = MYID}
-Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
+NetworkAPI.Init(Modem,QuarryFreq)
+TurtleAPI.Init(Modem,GPSFreq)
+
+--NetworkAPI.Send(Op,Payload,Dest)
+NetworkAPI.Send("SignIn",-1,-1)
 
 while true do
 	local _,side,sender,reply,msg,distance = os.pullEvent()
 	if (_ == "modem_message") then
-		local Tab = textutils.unserialise(msg)
-		if Tab.Dest == ID then
-			DirectMSG(Tab)
-		elseif Tab.Dest == -1 then
-			PublicMSG(Tab)
+		local Op,Payload,Dest,SID,ToUs = NetworkAPI.Unpack(msg)
+		if ToUs then
+			DirectMSG(Op,Payload,SID)
+		elseif Dest == -1 then
+			PublicMSG(Op,Payload,SID)
 		end
 	end
 end

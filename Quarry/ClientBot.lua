@@ -1,4 +1,5 @@
 os.loadAPI("GPSAPI.lua")
+os.loadAPI("NetworkAPI.lua")
 os.loadAPI("TurtleAPI.lua")
 
 local MYID = os.getComputerID()
@@ -32,36 +33,34 @@ end
 --function decs end
 --Controller function
 
-function DirectMSG(Tab)
-	if Tab.op == "RunFNC" then
-		local Data = {["op"] = "reply FNC", ["d"] = TestFNC(Tab.d), ["Dest"] = Tab.SID,["SID"] = MYID}
-		Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
-	elseif Tab.op == "QuarryBlocks" then
-		print(textutils.serialise(Tab))
-		return QuarryBlocks(Tab.d)
+function DirectMSG(Op,Payload,SID)
+	if Op == "RunFNC" then
+		NetworkAPI.Send("reply FNC",TestFNC(Payload),SID)
+	elseif Op == "QuarryBlocks" then
+		local Fails = QuarryBlocks(Payload)
+		TurtleAPI.GoTo("~",70,"~")
+		NetworkAPI.Send("FinishedQuarry",Fails,SID)
 	end
 end
 
---local Data = {["op"] = "QuarryBlocks", ["d"] = Blocks, ["Dest"] = ID, ["SID"] = MYID}
-
-function PublicMSG(Tab)
-	if (Tab.op == "SignIn") then
-		local Data = {["op"] = "reply SignIn", ["d"] = MYID, ["Dest"] = Tab.SID,["SID"] = MYID}
-		Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
+function PublicMSG(Op,Payload,SID)
+	if (Op == "SignIn") then
+		NetworkAPI.Send("reply SignIn",MYID,SID)
 	end
 end
 
 function QuarryBlocks(Blocks)
-	--{["x"] = x+XO,["y"] = y+YO,["z"] = z+ZO}
+	local Fails = {}
 	for k,v in pairs(Blocks) do
-		if(TurtleAPI.GoToRaw(v["x"],v["y"],v["z"])) then
-			turtle.digDown()
+		if(TurtleAPI.GoTo(v.x,v.y,v.z)) then
+			turtle.digDown()--do a thing for false
 			--INV check
 			--Fuel check
-			--do a thing for false
+		else
+			table.insert(Fails,v)
 		end
 	end
-	return true
+	return Fails
 end
 
 --End controller
@@ -102,23 +101,23 @@ if not Pos then
 	return false
 end
 
+NetworkAPI.Init(Modem,QuarryFreq)
 TurtleAPI.Init(Modem,GPSFreq)
 
-local Data = {["op"] = "Ready", ["d"] = -1, ["Dest"] = -1, ["SID"] = MYID}
-Modem.transmit(QuarryFreq,QuarryFreq,textutils.serialise(Data))
+--NetworkAPI.Send(Op,Payload,Dest)
+NetworkAPI.Send("Ready",-1,-1)
 
 while true do
 	local _,side,sender,reply,msg,distance = os.pullEvent()
 	if (_ == "modem_message") then
-		--print(msg)
-		local Tab = textutils.unserialise(msg)
-		if Tab.Dest == MYID then
-			DirectMSG(Tab)
-		elseif Tab.Dest == -1 then
-			PublicMSG(Tab)
+		local Op,Payload,Dest,SID,ToUs = NetworkAPI.Unpack(msg)
+		if ToUs then
+			DirectMSG(Op,Payload,SID)
+		elseif Dest == -1 then
+			PublicMSG(Op,Payload,SID)
 		end
-	elseif (side == MyTimer) then
-		return nil,"No gps response"
-	end
+	end-- elseif (side == MyTimer) then
+		-- return nil,"No gps response"
+	-- end
 end
 
