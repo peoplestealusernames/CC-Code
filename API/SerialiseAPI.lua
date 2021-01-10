@@ -114,7 +114,7 @@ function unserialiseFile(Location)
 	File.readLine()
 	local Stri = File.readAll()
 	File.close()
-	return unserialise(Stri)
+	return table.unpack({unserialise(Stri)})
 end
 
 function ReadCharter(File)
@@ -290,7 +290,7 @@ function serialiseFile(Location,Data,Force)
 	
 	local File = fs.open(Location,"w")
 	File.write(IDStri.."\n")
-	File.write(Err)
+	File.write(Ret)
 	File.close()
 	return true
 end
